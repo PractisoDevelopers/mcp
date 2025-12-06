@@ -180,6 +180,8 @@ async def save(ctx: ContextType, path: str) -> str:
         raise ValueError("path is not absolute")
     if _path.is_dir():
         raise ValueError("path is an existing directory")
+    if _path.is_file():
+        raise ValueError("path is an existing file which you may not overwrite")
     if _path.suffix != ".psarchive":
         raise ValueError("path doesn't end with `.psarchive`")
 
