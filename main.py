@@ -3,6 +3,7 @@ import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncIterator
 
 from mcp.server.fastmcp import FastMCP
@@ -29,9 +30,9 @@ async def app_lifespan(_: FastMCP) -> AsyncIterator[AppContext]:
         if state.valid and not state.built:
             archive = await builder.build()
             save_name = f'unsaved_{datetime.now().strftime("%Y%m%d_%H%M%S")}.psarchive'
-            with gzip.open(save_name, 'wb') as fd:
+            with gzip.open(save_name, "wb") as fd:
                 fd.write(archive.to_bytes())
-        elif not state.valid:
+        elif not state.valid and not state.empty:
             print(
                 f"Warning: archive was left invalid at {state.head.name} and was UNSAVED",
                 file=sys.stderr,
@@ -58,9 +59,21 @@ def _format_available_actions(actions: list[str]) -> str:
     )
 
 
-def _assert_valid(is_valid: bool):
+def _format_and_clause(items: list[str]) -> str:
+    if len(items) == 0:
+        raise ValueError("empty items")
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-2]) + ", " + _format_and_clause(items[-2:])
+
+
+def _assert_valid(is_valid: bool, instructions: str | None = None):
     if not is_valid:
-        raise RuntimeError("you are in an illegal state")
+        raise RuntimeError(
+            "you are in an illegal state" + f"; {instructions}" if instructions else ""
+        )
 
 
 @mcp.tool()
@@ -93,6 +106,31 @@ def add_text(ctx: ContextType, content: str) -> str:
     if context.state.head == Head.quiz:
         availble_actions.append("end the quiz")
     return f"Text added. {_format_available_actions(availble_actions)}"
+
+
+@mcp.tool()
+async def save(ctx: ContextType, path: str) -> str:
+    """Save the your edit into a file. Use only if the builder is NOT empty, AND the last quiz has been ended. `path` must be absolute, and the file extension must be `.psarchive`"""
+
+    _path = Path(path)
+    if not _path.is_absolute():
+        raise ValueError("path is not absolute")
+    if _path.is_dir():
+        raise ValueError("path is an existing directory")
+    if _path.suffix != ".psarchive":
+        raise ValueError("path doesn't end with `.psarchive`")
+
+    context = ctx.request_context.lifespan_context
+    _assert_valid(not context.state.empty, instructions="begin a quiz first")
+    _assert_valid(
+        context.state.valid,
+        instructions=f"end the {_format_and_clause(list(head for head in (Head(i).name for i in range(context.state.level, 0, -1))))}",
+    )
+
+    with gzip.open(_path, "wb") as fd:
+        content = await context.quiz_builder.build()
+        fd.write(content.to_bytes())
+    return f"Your edit has been saved to `{_path}`"
 
 
 if __name__ == "__main__":
