@@ -9,6 +9,7 @@ from typing import AsyncIterator, Callable
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.server import Context
 from mcp.server.session import ServerSession
+from practiso_sdk import build
 from practiso_sdk.build import Builder
 
 from state_tracking import BuildingStateTracker, Head
@@ -18,6 +19,7 @@ from state_tracking import BuildingStateTracker, Head
 class AppContext:
     quiz_builder: Builder
     state: BuildingStateTracker
+    stashed_builders: list[Builder]
 
 
 @asynccontextmanager
@@ -25,7 +27,7 @@ async def app_lifespan(_: FastMCP) -> AsyncIterator[AppContext]:
     builder = Builder()
     state = BuildingStateTracker()
     try:
-        yield AppContext(quiz_builder=builder, state=state)
+        yield AppContext(quiz_builder=builder, state=state, stashed_builders=[])
     finally:
         if state.valid and not state.built:
             archive = await builder.build()
@@ -196,6 +198,28 @@ async def save(ctx: ContextType, path: str) -> str:
         content = await context.quiz_builder.build()
         fd.write(content.to_bytes())
     return f"Your edit has been saved to `{_path}`"
+
+
+@mcp.tool()
+def stash(ctx: ContextType) -> str:
+    """Remove the current builder and put it to the stash. Similar to git stash, it can be taken out and merged with the new builder using the stash_pop tool. Also used to clear the current builder if necessary. WARNING: only ended quiz are stashed, so use with caution to avoid progress loss."""
+    context = ctx.request_context.lifespan_context
+    context.stashed_builders.append(context.quiz_builder)
+    context.quiz_builder = Builder()
+    return f"Your current work has been moved to stash."
+
+
+@mcp.tool()
+def stash_pop(ctx: ContextType) -> str:
+    """Remove the top builder in the stash and merge the quizzes with the active builder. Use only if you have ever stashed."""
+    context = ctx.request_context.lifespan_context
+    if len(context.stashed_builders) <= 0:
+        raise RuntimeError("stash is empty")
+
+    context.quiz_builder = build.merge(
+        context.quiz_builder, context.stashed_builders.pop()
+    )
+    return f"Successfully popped and merged."
 
 
 if __name__ == "__main__":
