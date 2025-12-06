@@ -76,6 +76,21 @@ def _assert_valid(is_valid: bool, instructions: str | None = None):
         )
 
 
+def _get_available_actions(current_head: Head) -> str:
+    if current_head == Head.option:
+        return [
+            "add an image",
+            "add a text",
+            "end the option",
+        ]
+    if current_head == Head.quiz:
+        return ["add a text", "add an image", "begin an Options", "end the quiz"]
+    if current_head == Head.options:
+        return ["end the Options", "add more Option"]
+    if current_head == Head.root:
+        return ["save the all quiz(zes) into an archive file", "begin another quiz"]
+
+
 @mcp.tool()
 def begin_quiz(ctx: ContextType, name: str | None) -> str:
     """Ask the builder to begin a quiz. Name it with context. Use this tool ONLY IF either: 1. the last quiz has been ended; 2. it's the first time use."""
@@ -93,7 +108,7 @@ def end_quiz(ctx: ContextType):
     _assert_valid(context.state.head == Head.quiz)
     context.quiz_builder.end_quiz()
     context.state.decrease_level()
-    return f"Quiz ended. {_format_available_actions(['save the all quiz(zes) into an archive file', 'begin another quiz'])}"
+    return f"Quiz ended. {_format_available_actions(_get_available_actions(context.state.head))}"
 
 
 @mcp.tool()
@@ -102,10 +117,56 @@ def add_text(ctx: ContextType, content: str) -> str:
     context = ctx.request_context.lifespan_context
     _assert_valid(context.state.head in [Head.quiz, Head.option])
     context.quiz_builder.add_text(content)
-    availble_actions = ["add more content"]
-    if context.state.head == Head.quiz:
-        availble_actions.append("end the quiz")
-    return f"Text added. {_format_available_actions(availble_actions)}"
+    return f"Text added. {_format_available_actions(_get_available_actions(context.state.head))}"
+
+
+@mcp.tool()
+def add_image(ctx: ContextType, file_path: str, caption: str | None = None) -> str:
+    """Ask the builder to add an image to the ongoing quiz."""
+    context = ctx.request_context.lifespan_context
+    _file_path = Path(file_path)
+    if not _file_path.is_file():
+        raise ValueError("file doesn't exist")
+    context.quiz_builder.begin_image(alt_text=caption).attach_image_file(
+        file_path
+    ).end_image()
+    return f"Image added. {_format_available_actions(_get_available_actions(context.state.head))}"
+
+
+@mcp.tool()
+def begin_options(ctx: ContextType, name: str | None = None) -> str:
+    """Ask the builder to begin an Options, which is the container of multiple Option, serving as choices. The user can interact with them by choosing one or several of the assumed answers. You don't have to but can give the Options a descriptive name."""
+    context = ctx.request_context.lifespan_context
+    context.quiz_builder.begin_options(name)
+    context.state.increase_level()
+    return f"Options begun. {_format_available_actions(_get_available_actions(context.state.head))}"
+
+
+@mcp.tool()
+def begin_option(ctx: ContextType, is_answer_key: bool, priority: int = 0) -> str:
+    """Ask the builder to begin an Option, which is the container of ONE text or image item. The user can do either: 1. single choice if only one of the Option in the current Options container is marked as the answer key, or 2. multiple choice if more than one is marked as answer key. Reorder the Option when necessary using the `priority` parameter, higher the value the prior. Same priority means random order when presented to the user. Adding more text or image items will OVERWRITE the previous one. Use this tool only if there's an Options container currently onging."""
+    context = ctx.request_context.lifespan_context
+    context.quiz_builder.begin_option(is_key=is_answer_key, priority=priority)
+    context.state.increase_level()
+    return f"Option begun. {_format_available_actions(_get_available_actions(context.state.head))}"
+
+
+@mcp.tool()
+def end_option(ctx: ContextType) -> str:
+    """Ask the builder to end the Option. This will bring back the last onging Options. Only use after you have begun an Option and added content to it."""
+    context = ctx.request_context.lifespan_context
+    context.quiz_builder.end_option()
+    context.state.decrease_level()
+    return f"Option ended. {_format_available_actions(_get_available_actions(context.state.head))}"
+
+
+@mcp.tool()
+def end_options(ctx: ContextType) -> str:
+    """Ask the builder to end the Options. Use only after you have begun an Options and added content to it."""
+    context = ctx.request_context.lifespan_context
+    context.quiz_builder.end_options()
+    context.state.decrease_level()
+    return f"Options ended. {_format_available_actions(_get_available_actions(context.state.head))}"
 
 
 @mcp.tool()
