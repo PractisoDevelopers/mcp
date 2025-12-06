@@ -77,8 +77,8 @@ def _assert_valid(is_valid: bool, instructions: str | None = None):
 
 
 @mcp.tool()
-def begin_quiz(ctx: ContextType, name: str | None = None) -> str:
-    """Ask the builder to begin a quiz. Use this tool ONLY IF either: 1. the last quiz has been ended; 2. it's the first time use."""
+def begin_quiz(ctx: ContextType, name: str | None) -> str:
+    """Ask the builder to begin a quiz. Name it with context. Use this tool ONLY IF either: 1. the last quiz has been ended; 2. it's the first time use."""
     context = ctx.request_context.lifespan_context
     _assert_valid(context.state.head == Head.root)
     context.quiz_builder.begin_quiz(name=name)
@@ -98,7 +98,7 @@ def end_quiz(ctx: ContextType):
 
 @mcp.tool()
 def add_text(ctx: ContextType, content: str) -> str:
-    """Ask the builder to add a piece of text in the ongoing quiz. Use only if there's currently an onging quiz."""
+    """Ask the builder to add a piece of text to the ongoing quiz. Use only if there's currently an onging quiz."""
     context = ctx.request_context.lifespan_context
     _assert_valid(context.state.head in [Head.quiz, Head.option])
     context.quiz_builder.add_text(content)
