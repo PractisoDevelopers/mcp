@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.server import Context
@@ -69,10 +69,12 @@ def _format_and_clause(items: list[str]) -> str:
     return ", ".join(items[:-2]) + ", " + _format_and_clause(items[-2:])
 
 
-def _assert_valid(is_valid: bool, instructions: str | None = None):
+def _assert_valid(is_valid: bool, instructions: str | Callable[[], str] | None = None):
     if not is_valid:
         raise RuntimeError(
-            "you are in an illegal state" + f"; {instructions}" if instructions else ""
+            "you are in an illegal state" + f"; {instructions}"
+            if isinstance(instructions, str)
+            else instructions() if isinstance(instructions, Callable) else ""
         )
 
 
@@ -185,7 +187,7 @@ async def save(ctx: ContextType, path: str) -> str:
     _assert_valid(not context.state.empty, instructions="begin a quiz first")
     _assert_valid(
         context.state.valid,
-        instructions=f"end the {_format_and_clause(list(head for head in (Head(i).name for i in range(context.state.level, 0, -1))))}",
+        instructions=lambda: f"end the {_format_and_clause(list(head for head in (Head(i).name for i in range(context.state.level, 0, -1))))}",
     )
 
     with gzip.open(_path, "wb") as fd:
