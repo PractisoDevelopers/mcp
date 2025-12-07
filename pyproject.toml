@@ -1,12 +1,12 @@
 [project]
 name = "practiso-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server to generate Practiso archives"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp[cli]>=1.23.1",
-    "practiso-sdk>=0.3.0",
+    "mcp>=1.23.1",
+    "practiso-sdk>=1.0.0",
 ]
 
 [tool.pyright]
@@ -16,3 +16,9 @@ venv = ".venv"
 reportUnusedCallResult = false
 reportUnknownMemberType = false
 
+[project.scripts]
+practiso-mcp = "pracitso_mcp:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
