@@ -5,17 +5,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncIterator, Callable
-from argparse import ArgumentParser
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.server import Context
 from mcp.server.session import ServerSession
 from practiso_sdk import build
 from practiso_sdk.build import Builder
+
 from state_tracking import BuildingStateTracker, Head
 
 
-def main(transport='stdio'):
+def main(transport="stdio"):
     @dataclass
     class AppContext:
         quiz_builder: Builder
